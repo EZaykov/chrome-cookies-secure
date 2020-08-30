@@ -17,11 +17,14 @@ var sqlite3 = require('sqlite3'),
 	Cookie = tough.Cookie,
 	path,
 	ITERATIONS,
-	dbClosed = false;
+  dbClosed = false;
+
+
+const _path = require('path');
 
 var	KEYLENGTH = 16,
 	SALT = 'saltysalt'
-	
+
 // Decryption based on http://n8henrie.com/2014/05/decrypt-chrome-cookies-with-python/
 // Inspired by https://www.npmjs.org/package/chrome-cookies
 
@@ -192,7 +195,7 @@ function convertRawToSetCookieStrings(cookies) {
 function convertRawToPuppeteerState(cookies) {
 
 	let puppeteerCookies = [];
-	
+
 	cookies.forEach(function(cookie, index) {
 		const newCookieObject = {
 			name: cookie.name,
@@ -246,7 +249,7 @@ function decryptAES256GCM(key, enc, nonce, tag) {
 
  */
 
-const getCookies = async (uri, format, callback, profile) => {
+const getCookies = async (userdataPath, uri, format, callback, profile) => {
 
 	profile ? profile : profile = 'Default'
 
@@ -254,20 +257,20 @@ const getCookies = async (uri, format, callback, profile) => {
 
 		path = process.env.HOME + `/Library/Application Support/Google/Chrome/${profile}/Cookies`;
 		ITERATIONS = 1003;
-	
+
 	} else if (process.platform === 'linux') {
-	
+
 		path = process.env.HOME + `/.config/google-chrome/${profile}/Cookies`;
 		ITERATIONS = 1;
-	
+
 	} else if (process.platform === 'win32') {
 
-		path = os.homedir() + `\\AppData\\Local\\Google\\Chrome\\User Data\\${profile}\\Cookies`;
+		path = `${userdataPath}\\${profile}\\Cookies`;
 
 	} else {
-	
+
 		return callback(new Error('Only Mac, Windows, and Linux are supported.'));
-	
+
 	}
 
 	db = new sqlite3.Database(path);
@@ -307,7 +310,7 @@ const getCookies = async (uri, format, callback, profile) => {
 			// ORDER BY tries to match sort order specified in
 			// RFC 6265 - Section 5.4, step 2
 			// http://tools.ietf.org/html/rfc6265#section-5.4
-			
+
 			db.each("SELECT host_key, path, is_secure, expires_utc, name, value, encrypted_value, creation_utc, is_httponly, has_expires, is_persistent FROM cookies where host_key like '%" + domain + "' ORDER BY LENGTH(path) DESC, creation_utc ASC", function (err, cookie) {
 
 				var encryptedValue,
@@ -325,7 +328,7 @@ const getCookies = async (uri, format, callback, profile) => {
 							cookie.value = dpapi.unprotectData(encryptedValue, null, 'CurrentUser').toString('utf-8');
 
 						} else if (encryptedValue[0] == 0x76 && encryptedValue[1] == 0x31 && encryptedValue[2] == 0x30 ){
-							localState = JSON.parse(fs.readFileSync(os.homedir() + '/AppData/Local/Google/Chrome/User Data/Local State'));
+							localState = JSON.parse(fs.readFileSync(_path.resolve(userdataPath, 'Local State')));
 							b64encodedKey = localState.os_crypt.encrypted_key;
 							encryptedKey = new Buffer.from(b64encodedKey,'base64');
 							key = dpapi.unprotectData(encryptedKey.slice(5, encryptedKey.length), null, 'CurrentUser');
